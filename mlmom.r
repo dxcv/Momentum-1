@@ -3,10 +3,10 @@
 # outperformance?
 # 
 # Possible features:
-#   Rank of Raw Momentum (return) MOM_RANK_FROM_TO
-#   Raw Momentum (return) MOM_RET_FROM_TO
-#   Rank of Return/SD MOM_SHRP_RANK_FROM_TO
-#   Raw Return/SD MOM_SHRP_FROM_TO
+#   Rank of Raw Momentum (return) RANK_FROM_TO
+#   Raw Momentum (return) RET_FROM_TO
+#   Rank of Return/SD SHRPRANK_FROM_TO
+#   Raw Return/SD SHRP_FROM_TO
 
 #   Acceleration: Change in momentum from one period to another
 #       Difference in return  
@@ -118,7 +118,7 @@ for (m in c(3,6,12)){
 rm(y.ret,y.rank)
 #### End of Create data frame with potential Y values: 1, 3,6 and 12 month trailing return and ranks
 
-x<-matrix(NA,nrow=length(month.end.dates)*ncol(data),ncol=78*2+12+36*2+15*2)
+x<-matrix(NA,nrow=length(month.end.dates)*ncol(data),ncol=78*4+12+36*2+15*2)
 
 cnames<-NULL
 for (TO in 1:12){
@@ -131,6 +131,18 @@ for (TO in 1:12){
         cnames<-c(cnames,paste("rank_",FROM,"_",TO,sep=""))
     }
 }
+
+for (TO in 1:12){
+    for (FROM in TO:12){
+        cnames<-c(cnames,paste("shrp_",FROM,"_",TO,sep=""))
+    }
+}
+for (TO in 1:12){
+    for (FROM in TO:12){
+        cnames<-c(cnames,paste("shrprank_",FROM,"_",TO,sep=""))
+    }
+}
+
 for (i in 1:12){
     cnames<-c(cnames,paste("sd_",i,sep=""))
 }
@@ -170,17 +182,28 @@ for (DT in 1:length(dates.vec)){
             for (FROM in TO:12){
                 if (DT-FROM < 1){
                     temp.ret<-NA
-                    temp.rank<-NA
+                    temp.rankret<-NA
+                    temp.shrp<-NA
+                    temp.rankshrp<-NA
                 } else {
                     temp.ret<-apply(1+monthly.returns[(DT-FROM):(DT-TO),],2,prod)-1
-                    temp.rank<-rank(-temp.ret,ties.method="random")
+                    temp.sd<-apply(data[((month.end.pts[DT-FROM]+1):month.end.pts[DT+1-TO]),],2,sd)
+                    temp.shrp<-temp.ret/temp.sd
+                    temp.rankret<-rank(-temp.ret,ties.method="random")
+                    temp.rankshrp<-rank(-temp.shrp,ties.method="random")
                     temp.ret<-temp.ret[AC]
-                    temp.rank<-temp.rank[AC]
+                    temp.rankret<-temp.rankret[AC]
+                    temp.shrp<-temp.shrp[AC]
+                    temp.rankshrp<-temp.rankshrp[AC]
                 }
                 colname<-paste("ret_",FROM,"_",TO,sep="")
                 x[idx,colname]<-temp.ret
                 colname<-paste("rank_",FROM,"_",TO,sep="")
-                x[idx,colname]<-temp.rank
+                x[idx,colname]<-temp.rankret
+                colname<-paste("shrp_",FROM,"_",TO,sep="")
+                x[idx,colname]<-temp.shrp
+                colname<-paste("shrprank_",FROM,"_",TO,sep="")
+                x[idx,colname]<-temp.rankshrp
             }
         }
         #End of Ret and Ranks
