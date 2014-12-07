@@ -7,9 +7,12 @@
 #   Raw Momentum (return) MOM_RET_FROM_TO
 #   Rank of Return/SD MOM_SHRP_RANK_FROM_TO
 #   Raw Return/SD MOM_SHRP_FROM_TO
+
 #   Acceleration: Change in momentum from one period to another
 #       Difference in return  
 #       Difference in rank 
+#       Difference in sd
+#       Difference is sd rank
 #       Difference in return/sd 
 #       Difference in rank of return/sd 
 #   Time periods for features
@@ -25,6 +28,7 @@
 #       Let p1 vary from 1 to 6 and p2 vary from 1 to 11 subject to the condition that p2>=p1; 
 #       Var names: ACC_RET_P1_P2; ACC_RANK_P1_P2; ACC_SHRP_P1_P2; ACC_SHRP_RANK_P1_P2 - these are 'raw' values
 #                   Ranks of above: RANK_ACC_RET_P1_P2; RANK_ACC_RANK_P1_P2; RANK_ACC_SHRP_P1_P2; RANK_ACC_SHRP_RANK_P1_P2
+#                   chgsd_P1_P2; chgsdrank_P1_P2
 
 #   Y variables:
 #       Rate of return
@@ -114,7 +118,7 @@ for (m in c(3,6,12)){
 rm(y.ret,y.rank)
 #### End of Create data frame with potential Y values: 1, 3,6 and 12 month trailing return and ranks
 
-x<-matrix(NA,nrow=length(month.end.dates)*ncol(data),ncol=78*2+11+36*2)
+x<-matrix(NA,nrow=length(month.end.dates)*ncol(data),ncol=78*2+12+36*2+15*2)
 
 cnames<-NULL
 for (TO in 1:12){
@@ -127,7 +131,7 @@ for (TO in 1:12){
         cnames<-c(cnames,paste("rank_",FROM,"_",TO,sep=""))
     }
 }
-for (i in 2:12){
+for (i in 1:12){
     cnames<-c(cnames,paste("sd_",i,sep=""))
 }
 for (P2 in 1:6){
@@ -138,6 +142,16 @@ for (P2 in 1:6){
 for (P2 in 1:6){
     for (P1 in P2:(12-P2)){
         cnames<-c(cnames,paste("accrank_",P1,"_",P2,sep=""))
+    }
+}
+for (P2 in c(1,3,6)){
+    for (P1 in c(11,9,6,3,1)){
+        cnames<-c(cnames,paste("chgsd_",P1,"_",P2,sep=""))
+    }
+}
+for (P2 in c(1,3,6)){
+    for (P1 in c(11,9,6,3,1)){
+        cnames<-c(cnames,paste("chgsdrank_",P1,"_",P2,sep=""))
     }
 }
 colnames(x)<-cnames
@@ -171,7 +185,7 @@ for (DT in 1:length(dates.vec)){
         }
         #End of Ret and Ranks
         #Start of SD
-        for (SD in 2:12){
+        for (SD in 1:12){
             if (DT-SD < 0){
                 temp.sd<-NA
             } else {
@@ -202,6 +216,27 @@ for (DT in 1:length(dates.vec)){
             }
        }
         #End of ACC
-    }
-}
-save(x,y,file="mlmom1.rdata")
+        #End of SD chg and Rank
+        for (P2 in c(1,3,6)){
+           for (P1 in c(11,9,6,3,1)){
+               temp.sd<-NA
+               temp.rank<-NA
+               if (DT-P1-P2 >= 1 & P1>=P2 & P1+P2<=12){
+                   temp.sdP1<-apply(data[((month.end.pts[DT+1-P1-P2]+1):month.end.pts[DT+1-P2]),],2,sd)
+                   temp.sdP2<-apply(data[((month.end.pts[DT+1-P2]+1):month.end.pts[DT+1]),AC],2,sd)
+                   temp.sd<-temp.sdP2-temp.sdP1
+                   temp.rank<-rank(temp.sd,ties.method="random")
+                   temp.sd<-temp.sd[AC]
+                   temp.rank<-temp.rank[AC]
+               }
+               colname<-paste("chgsd_",P1,"_",P2,sep="")
+               x[idx,colname]<-temp.sd
+               colname<-paste("chgsdrank_",P1,"_",P2,sep="")
+               x[idx,colname]<-temp.rank
+           }
+        }
+        #End of SD chg and Rank
+    } #end for each AC 
+} #end for each Date
+save(x,y,file="mlmom1_sector.rdata")
+
