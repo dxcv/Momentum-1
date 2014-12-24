@@ -49,9 +49,7 @@ library(xts)
 library(quantmod)
 library(timeSeries)
 library(PerformanceAnalytics)
-####
-#Flexible Asset Allocation
-####
+
 location<-"home"
 wd.home<-"~/Quant Trading/Momentum/"
 momdir.home<-"~/Quant Trading/Momentum/"
@@ -72,8 +70,13 @@ if (location=="home"){
 setwd(wd)
 source(paste(momdir,"momentum.r",sep=""))
 load(paste(datadir,"bbreturnsdaily.rdata",sep=""))
+#sec.names<-c("SP500VAN","MXEA","EM","STTSY","TTLBND","COMMOD","REITVAN")
 sec.names<-c("S5FINL","S5HLTH","S5UTIL","S5COND","S5INFT","S5INDU","S5CONS","S5MATR","S5TELS","S5ENRS")
-data<-returns.daily[,sec.names]/100
+data<-returns.daily[,sec.names]
+temp<-apply(data,2,as.numeric)
+row.names(temp)<-as.character(index(data))
+temp<-as.xts(temp)
+data<-temp/100
 data<-data[complete.cases(data),]
 rm(returns.daily)
 
@@ -89,8 +92,10 @@ i<-1
 for (dt in 1:nrow(y.ret)){
     for (ac in 1:ncol(y.ret)){
         y[i,"ACDT"]<-acdt(colnames(y.ret)[ac],index(y.ret)[dt])
-        y[i,"RET1"]<-y.ret[dt,ac]
-        y[i,"RANK1"]<-y.rank[dt,ac]
+        if (dt+1 <= nrow(y.ret)){
+            y[i,"RET1"]<-y.ret[dt+1,ac]
+            y[i,"RANK1"]<-y.rank[dt+1,ac]    
+        }
         i<-i+1    
     }
 }
@@ -100,14 +105,12 @@ fill.y.matrix<-function(y,m){
     rank.str<-paste("RANK",m,sep="")
     y.ret<-mom_ac_hist_ret(data,lookback=m,data.type="returns")
     y.rank<-mom_ac_ret_rank(data,lookback=m,data.type="returns")
-    i<-1
-    for (dt in 1:nrow(y.ret)){
-        for (ac in 1:ncol(y.ret)){
-            idx<-acdt(colnames(y.ret)[ac],index(y.ret)[dt])
-            y[y[,"ACDT"]==idx,ret.str]<-as.numeric(y.ret[dt,ac])
-            y[y[,"ACDT"]==idx,rank.str]<-as.numeric(y.rank[dt,ac])
-            i<-i+1    
-        }
+    n.assets<-ncol(y.ret)
+    for (i in 1:n.assets){
+        idx.y<-seq(from=i,by=n.assets,length.out=nrow(y.ret)-1)
+        idx.yret<-seq(2,nrow(y.ret))
+        y[idx.y,ret.str]<-y.ret[idx.yret,i]
+        y[idx.y,rank.str]<-y.rank[idx.yret,i]
     }
     return(y)
 }
@@ -118,7 +121,7 @@ for (m in c(3,6,12)){
 rm(y.ret,y.rank)
 #### End of Create data frame with potential Y values: 1, 3,6 and 12 month trailing return and ranks
 
-x<-matrix(NA,nrow=length(month.end.dates)*ncol(data),ncol=78*4+12+36*2+15*2)
+x<-matrix(NA,nrow=length(month.end.dates)*ncol(data),ncol=414)
 
 cnames<-NULL
 for (TO in 1:12){
@@ -158,12 +161,16 @@ for (P2 in 1:6){
 }
 for (P2 in c(1,3,6)){
     for (P1 in c(11,9,6,3,1)){
-        cnames<-c(cnames,paste("chgsd_",P1,"_",P2,sep=""))
+        if(P1>=P2 & P1+P2<=12) {
+            cnames<-c(cnames,paste("chgsd_",P1,"_",P2,sep=""))
+        }
     }
 }
 for (P2 in c(1,3,6)){
     for (P1 in c(11,9,6,3,1)){
-        cnames<-c(cnames,paste("chgsdrank_",P1,"_",P2,sep=""))
+        if(P1>=P2 & P1+P2<=12) {
+            cnames<-c(cnames,paste("chgsdrank_",P1,"_",P2,sep=""))
+        }
     }
 }
 colnames(x)<-cnames
@@ -186,9 +193,9 @@ for (DT in 1:length(dates.vec)){
                     temp.shrp<-NA
                     temp.rankshrp<-NA
                 } else {
-                    temp.ret<-apply(1+monthly.returns[(DT-FROM):(DT-TO),],2,prod)-1
-                    temp.sd<-apply(data[((month.end.pts[DT-FROM]+1):month.end.pts[DT+1-TO]),],2,sd)
-                    temp.shrp<-temp.ret/temp.sd
+                    temp.ret<-apply(1+monthly.returns[(DT-FROM+1):(DT-TO+1),],2,prod)-1
+                    temp.sd<-apply(data[((month.end.pts[DT-FROM+1]+1):month.end.pts[DT+1-TO+1]),],2,sd)
+                    temp.shrp<-temp.ret*(12/(FROM-TO+1))/(temp.sd*sqrt(252))
                     temp.rankret<-rank(-temp.ret,ties.method="random")
                     temp.rankshrp<-rank(-temp.shrp,ties.method="random")
                     temp.ret<-temp.ret[AC]
@@ -225,9 +232,9 @@ for (DT in 1:length(dates.vec)){
                     temp.ret<-NA
                     temp.rank<-NA
                 } else {
-                    temp.retP1<-apply(1+monthly.returns[(DT-P1-P2):(DT-P2-1),],2,prod)-1
-                    temp.retP2<-apply(1+monthly.returns[(DT-P2):(DT-1),],2,prod)-1
-                    temp.ret<-temp.retP2-temp.retP1
+                    temp.retP1<-apply(1+monthly.returns[(DT-P1-P2+1):(DT-P2),],2,prod)
+                    temp.retP2<-apply(1+monthly.returns[(DT-P2+1):(DT),],2,prod)
+                    temp.ret<-temp.retP2^(1/P2)-temp.retP1^(1/P1)
                     temp.rank<-rank(-temp.ret,ties.method="random")
                     temp.ret<-temp.ret[AC]
                     temp.rank<-temp.rank[AC]
@@ -251,11 +258,11 @@ for (DT in 1:length(dates.vec)){
                    temp.rank<-rank(temp.sd,ties.method="random")
                    temp.sd<-temp.sd[AC]
                    temp.rank<-temp.rank[AC]
+                   colname<-paste("chgsd_",P1,"_",P2,sep="")
+                   x[idx,colname]<-temp.sd
+                   colname<-paste("chgsdrank_",P1,"_",P2,sep="")
+                   x[idx,colname]<-temp.rank
                }
-               colname<-paste("chgsd_",P1,"_",P2,sep="")
-               x[idx,colname]<-temp.sd
-               colname<-paste("chgsdrank_",P1,"_",P2,sep="")
-               x[idx,colname]<-temp.rank
            }
         }
         #End of SD chg and Rank
